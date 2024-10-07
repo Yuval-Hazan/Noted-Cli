@@ -1,0 +1,21 @@
+{
+  "name": "noted",
+  "version": "1.0.0",
+  "description": "A note-taking app that uses Git for version control.",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "noted": "./index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Yuval Hazan",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^10.0.0",
+    "inquirer": "^11.1.0",
+    "simple-git": "^3.19.1"
+  }
+}
