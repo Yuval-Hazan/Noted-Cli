@@ -5,6 +5,7 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import { error } from 'console';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -89,11 +90,12 @@ Examples:
                     }
                 }
 
-                console.log(chalk.green('✔ Repository initialization complete.'));
+
 
             } catch (error) {
                 console.error(chalk.red('✖ Error initializing repository: ') + error.message);
             }
+            console.log(chalk.green('✔ Repository initialization complete.'));
         });
 }
 
@@ -167,19 +169,21 @@ async function initGithub(git, repoName, repoPath) {
 
     try {
         // Create GitHub repository using gh CLI and capture the output
-        const output = execSync(`gh repo create ${repoName} --private --source=${repoPath} --remote`, { stdio: 'pipe' }).toString();
+        const output = execSync(`gh repo create ${repoName} --private --source=${repoPath} --remote origin`, { stdio: 'pipe' }).toString();
 
         // Extract the remote URL from the output (e.g., https://github.com/username/repo.git)
-        const remoteUrlMatch = output.match(/https:\/\/github\.com\/[\w-]+\/[\w-]+\.git/);
+        const remoteUrlMatch = output.match(/(?:git@|https:\/\/)github\.com[:\/]([a-zA-Z0-9-]+)\/([a-zA-Z0-9._-]+)(?:\.git)?/);
+
+
         const remoteUrl = remoteUrlMatch ? remoteUrlMatch[0] : null;
 
         if (!remoteUrl) {
             throw new Error('Failed to retrieve the remote URL.');
         }
 
-        // Add remote URL to Git repository
-        await git.addRemote('origin', remoteUrl);
-        console.log(chalk.green(`✔ Added GitHub remote: ${remoteUrl}`));
+        // // Add remote URL to Git repository
+        // await git.addRemote('origin', remoteUrl);
+        // console.log(chalk.green(`✔ Added GitHub remote: ${remoteUrl}`));
 
         // Create the configuration content
         const configContent = {

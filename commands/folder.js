@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
-import simpleGit from 'simple-git';
 import { commitChanges } from '../functions/commitHelper.js';  // Import the commit helper
 import { isMainNotedRepo } from '../functions/isParent.js';  // Import the isMainNotedRepo helper
 
@@ -15,14 +14,11 @@ export default function foldersCommand(program) {
         .option('-un, --untracked', 'Create the folder without tracking it in Git')
         .action(async (folderName = 'untitled-folder', options) => {
             try {
-                const currentDir = process.cwd();  // Current workspace directory
+                const currentDir = process.cwd();  // Current directory
                 if (isMainNotedRepo(currentDir)) {
                     console.error(chalk.red('✖ Error: Folders cannot be created in the main Noted repository.'));
                     return;
                 }
-
-                // Log the current directory for debugging
-                console.log(`Current directory for Git operations: ${currentDir}`);
 
                 // If no folder name is provided, default to "untitled-folder"
                 const baseFolderName = folderName || 'untitled-folder';
@@ -48,7 +44,7 @@ export default function foldersCommand(program) {
 
                 // Check if the folder should be tracked or untracked
                 if (!options.untracked) {
-                    // Track the folder and commit the changes inside the workspace
+                    // Track the folder and commit the changes
                     await commitChanges(currentDir, `Add folder: ${finalFolderName}`);
                 } else {
                     console.log(chalk.yellow(`✔ Folder added without tracking: ${finalFolderName}`));

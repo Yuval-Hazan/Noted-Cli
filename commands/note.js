@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
-import simpleGit from 'simple-git';
 import { commitChanges } from '../functions/commitHelper.js'; // Import the commit helper
 import { isMainNotedRepo } from '../functions/isParent.js'; // Import the isMainNotedRepo helper
 
@@ -41,6 +40,7 @@ export default function noteCommand(program) {
 
                 // Track the note in Git by default unless the --untracked option is specified
                 if (!options.untracked) {
+                    // Track the note and commit the changes
                     await commitChanges(currentDir, `Add note: ${finalNoteName}`);
                 } else {
                     console.log(chalk.yellow(`✔ Created untracked note: ${finalNoteName}`));
@@ -50,7 +50,6 @@ export default function noteCommand(program) {
                 console.error(chalk.red('✖ Error adding note: ') + error.message);
             }
         });
-
     // Delete note command
     note
         .command('delete <note>')
