@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 const program = new Command();
 program
     .name('noted')
-    .description('A note-taking app with Git version control.')
+    .description('A note-taking app with Git version control. Get Started now with "noted start"!')
     .version('1.0.0');
 
 // Dynamically load all command files from the "commands" directory
