@@ -15,7 +15,7 @@ export default function startCommand(program) {
         .command('start')
         .description('Initializes the main \'Noted\' repository.\nThis repository will contain all workspaces as submodules.')
         .option('-n, --name <name>', 'Specify the repository name (default: "Noted")')
-        .option('-, --local', 'Initialize as a local repository')
+        .option('-l, --local', 'Initialize as a local repository')
         .option('-r, --remote [url]', 'Initialize with a remote repository. Use "new" for GitHub creation, or specify a remote URL.')
         .addHelpText('after', `
 Examples:
@@ -157,19 +157,31 @@ async function initLocal(git, repoName, repoPath) {
 
 async function initGithub(git, repoName, repoPath) {
     try {
+        // Check GitHub authentication status
         execSync('gh auth status', { stdio: 'ignore' });
     } catch (error) {
+        // If not authenticated, prompt for login
         console.log(chalk.yellow('⚠ You are not authenticated with GitHub CLI.'));
         execSync('gh auth login', { stdio: 'inherit' });
     }
 
     try {
+        // Create GitHub repository using gh CLI and capture the output
+        const output = execSync(`gh repo create ${repoName} --private --source=${repoPath} --remote`, { stdio: 'pipe' }).toString();
 
-        execSync(`gh repo create ${repoName} --private`, { stdio: 'inherit' });
-        const remoteUrl = `https://github.com/your-username/${repoName}.git`;
+        // Extract the remote URL from the output (e.g., https://github.com/username/repo.git)
+        const remoteUrlMatch = output.match(/https:\/\/github\.com\/[\w-]+\/[\w-]+\.git/);
+        const remoteUrl = remoteUrlMatch ? remoteUrlMatch[0] : null;
+
+        if (!remoteUrl) {
+            throw new Error('Failed to retrieve the remote URL.');
+        }
+
+        // Add remote URL to Git repository
         await git.addRemote('origin', remoteUrl);
         console.log(chalk.green(`✔ Added GitHub remote: ${remoteUrl}`));
 
+        // Create the configuration content
         const configContent = {
             parent_type: 'remote',
             remote_type: 'github',
@@ -177,10 +189,12 @@ async function initGithub(git, repoName, repoPath) {
             createdAt: new Date().toISOString(),
         };
 
+        // Commit initial configuration and README
         await createInitialCommit(git, repoPath, configContent);
+
     } catch (error) {
-        console.log(chalk.red(`✖ Error creating GitHub repository ${repoName}. (Make sure it doesn't already exist.)`));
-        console.error(error);
+        console.log(chalk.red(`✖ Error creating GitHub repository ${repoName}.`));
+        console.error(error.message);
     }
 }
 
