@@ -5,7 +5,8 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
-import { error } from 'console';
+import * as getters from '../functions/getters.js'; // Import all functions from getters
+import * as validations from '../functions/validations.js'; // Import all functions from validations
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,7 +26,7 @@ Examples:
     $ noted start --local
     $ noted start --remote
     $ noted start --name MyNotes --remote new
-    $ noted start --remote www.example.com/repo.git
+    $ noted start --remote https://github.com/username/repo.git
 `)
         .action(async (options) => {
             try {
@@ -35,100 +36,47 @@ Examples:
                     return;
                 }
 
-                // Define repo name either by prompt or option
-                let repoName;
-                if (!options.name) {
-                    const { chosenRepoName } = await inquirer.prompt([
-                        {
-                            type: 'input',
-                            name: 'chosenRepoName',
-                            message: 'Enter a name for the repository:',
-                            default: 'Noted',
-                        }
-                    ]);
-                    repoName = chosenRepoName;
-                } else {
-                    repoName = options.name;
-                }
+                // Gather all user inputs upfront
+                const repoName = await getters.getRepoName(options); // Fixed: Using getters to get repo name
+                const repoType = await getters.getRepoType(options); // Use repoType from getters
+                const remoteOption = await getters.getRemoteOption(options, repoType); // Use remoteOption from getters
 
-                let git, repoPath;
+                // Proceed to repository setup
+                await parentSetup(repoName, repoType, remoteOption);
 
-                if (!options.local && !options.remote) {
-                    // If neither --local nor --remote is provided, prompt for the type
-                    const { repoType } = await inquirer.prompt([
-                        {
-                            type: 'list',
-                            name: 'repoType',
-                            message: 'Do you want to create a local or remote repository?',
-                            choices: ['Local', 'Remote']
-                        }
-                    ]);
-
-                    ({ git, repoPath } = await setupRepoAndGit(repoName));
-
-                    if (repoType === 'Local') {
-                        await initLocal(git, repoName, repoPath);
-                    } else {
-                        await handleRemoteSetup(git, repoName, repoPath);
-                    }
-
-                } else {
-                    // Handle the provided options (local or remote)
-                    ({ git, repoPath } = await setupRepoAndGit(repoName));
-
-                    if (options.local) {
-                        await initLocal(git, repoName, repoPath);
-                    } else if (options.remote === 'new') {
-                        // Handle GitHub setup if the remote is new
-                        await initGithub(git, repoName, repoPath);
-                    } else if (options.remote && isValidUrl(options.remote)) {
-                        // Handle manual URL setup if it's a valid URL
-                        await initUrl(git, repoName, repoPath, options.remote);
-                    } else {
-                        // If remote is specified but no valid URL or new is passed, handle via Inquirer prompt
-                        await handleRemoteSetup(git, repoName, repoPath);
-                    }
-                }
-
-
-
+                console.log(chalk.green('✔ Repository initialization complete.'));
             } catch (error) {
                 console.error(chalk.red('✖ Error initializing repository: ') + error.message);
             }
-            console.log(chalk.green('✔ Repository initialization complete.'));
         });
 }
 
-function isValidUrl(url) {
-    try {
-        new URL(url);
-        return true;
-    } catch (error) {
-        return false;
-    }
-}
+async function parentSetup(repoName, repoType, remoteOption) {
+    const repoPath = path.join(process.cwd(), repoName); // Full path to the new repository
 
-async function setupRepoAndGit(repoName) {
-    const repoPath = path.join(process.cwd(), repoName);
-
+    // Check if the directory already exists
     if (fs.existsSync(repoPath)) {
         console.error(chalk.red('✖ Error: ') + `Directory "${repoName}" already exists in this location.`);
         throw new Error('Directory already exists');
     }
 
-    // Create the directory 
+    // Create the directory
     fs.mkdirSync(repoPath);
     console.log(chalk.green('✔ Created directory: ') + chalk.blue(repoName));
 
     // Initialize Git repository
     const git = simpleGit(repoPath);
     await git.init();
-    console.log(chalk.green('✔ Initialized a new Git repository.'));
+    console.log(chalk.green(`✔ Initialized ${repoName} as a new Git repository.`));
 
-    return { git, repoPath };
-}
+    // Initialize configuration content
+    let configContent = {
+        parent_type: repoType.toLowerCase(),
+        remote_type: null,
+        remote_url: null,
+        createdAt: new Date().toISOString(),
+    };
 
-async function createInitialCommit(git, repoPath, configContent) {
     // Create a README.md file
     const templatePath = path.join(__dirname, '../template/parent-readme.md');
     const readmeContent = fs.readFileSync(templatePath, 'utf-8');
@@ -143,21 +91,25 @@ async function createInitialCommit(git, repoPath, configContent) {
     // Add and commit the initial files
     await git.add(['README.md', '.notedconfig']);
     await git.commit('Initial commit: Add README.md and .notedconfig');
-    console.log(chalk.green('✔ Initial commit: Add README.md and .notedconfig'));
+    console.log(chalk.green('✔ Initial commit: Added README.md and .notedconfig'));
+
+    // If repository is remote, set up the remote after initial commit
+    if (repoType === 'Remote') {
+        if (remoteOption === 'new') {
+            // Initialize GitHub repository
+            await initGithubParent(git, repoName, repoPath, configContent);
+        } else if (validations.isValidUrl(remoteOption)) {
+            // Initialize with specified remote URL
+            await initUrlParent(git, repoName, repoPath, remoteOption, configContent);
+        }
+
+        // Push initial commit to remote repository
+        await git.push('origin', 'main');
+        console.log(chalk.green('✔ Pushed initial commit to remote repository.'));
+    }
 }
 
-async function initLocal(git, repoName, repoPath) {
-    const configContent = {
-        parent_type: 'local',
-        remote_type: null,
-        remote_url: null,
-        createdAt: new Date().toISOString(),
-    };
-
-    await createInitialCommit(git, repoPath, configContent);
-}
-
-async function initGithub(git, repoName, repoPath) {
+async function initGithubParent(git, repoName, repoPath, configContent) {
     try {
         // Check GitHub authentication status
         execSync('gh auth status', { stdio: 'ignore' });
@@ -168,78 +120,39 @@ async function initGithub(git, repoName, repoPath) {
     }
 
     try {
-        // Create GitHub repository using gh CLI and capture the output
-        const output = execSync(`gh repo create ${repoName} --private --source=${repoPath} --remote origin`, { stdio: 'pipe' }).toString();
+        // Create GitHub repository using gh CLI
+        execSync(`gh repo create ${repoName} --private --source=. --remote=origin`, { cwd: repoPath, stdio: 'ignore' });
 
-        // Extract the remote URL from the output (e.g., https://github.com/username/repo.git)
-        const remoteUrlMatch = output.match(/(?:git@|https:\/\/)github\.com[:\/]([a-zA-Z0-9-]+)\/([a-zA-Z0-9._-]+)(?:\.git)?/);
+        // Get the remote URL
+        const remoteUrl = (await git.getConfig('remote.origin.url')).value;
 
+        // Update config content
+        configContent.remote_type = 'github';
+        configContent.remote_url = remoteUrl;
 
-        const remoteUrl = remoteUrlMatch ? remoteUrlMatch[0] : null;
+        // Update .notedconfig file with remote info
+        const configPath = path.join(repoPath, '.notedconfig');
+        fs.writeFileSync(configPath, JSON.stringify(configContent, null, 2));
+        await git.add('.notedconfig');
+        await git.commit('Update .notedconfig with remote info');
 
-        if (!remoteUrl) {
-            throw new Error('Failed to retrieve the remote URL.');
-        }
-
-        // // Add remote URL to Git repository
-        // await git.addRemote('origin', remoteUrl);
-        // console.log(chalk.green(`✔ Added GitHub remote: ${remoteUrl}`));
-
-        // Create the configuration content
-        const configContent = {
-            parent_type: 'remote',
-            remote_type: 'github',
-            remote_url: remoteUrl,
-            createdAt: new Date().toISOString(),
-        };
-
-        // Commit initial configuration and README
-        await createInitialCommit(git, repoPath, configContent);
-
+        console.log(chalk.green(`✔ GitHub repository created: ${remoteUrl}`));
     } catch (error) {
         console.log(chalk.red(`✖ Error creating GitHub repository ${repoName}.`));
-        console.error(error.message);
+        throw error;
     }
 }
 
-async function initUrl(git, repoName, repoPath, remoteUrl) {
+async function initUrlParent(git, repoName, repoPath, remoteUrl, configContent) {
     await git.addRemote('origin', remoteUrl);
     console.log(chalk.green(`✔ Added remote URL: ${remoteUrl}`));
 
-    const configContent = {
-        parent_type: 'remote',
-        remote_type: 'url',
-        remote_url: remoteUrl,
-        createdAt: new Date().toISOString(),
-    };
+    configContent.remote_type = 'url';
+    configContent.remote_url = remoteUrl;
 
-    await createInitialCommit(git, repoPath, configContent);
-}
-
-async function handleRemoteSetup(git, repoName, repoPath) {
-    const { remoteType } = await inquirer.prompt([
-        {
-            type: 'list',
-            name: 'remoteType',
-            message: 'How would you like to configure the remote repository?',
-            choices: ['GitHub (new)', 'Manual URL']
-        }
-    ]);
-
-    if (remoteType === 'GitHub (new)') {
-        await initGithub(git, repoName, repoPath);
-    } else {
-        const { manualUrl } = await inquirer.prompt({
-            type: 'input',
-            name: 'manualUrl',
-            message: 'Enter remote URL:',
-            validate: (input) => {
-                if (isValidUrl(input)) {
-                    return true;
-                }
-                return 'Please enter a valid URL';
-            }
-        });
-        await initUrl(git, repoName, repoPath, manualUrl);
-    }
+    // Update .notedconfig file with remote info
+    const configPath = path.join(repoPath, '.notedconfig');
+    fs.writeFileSync(configPath, JSON.stringify(configContent, null, 2));
+    await git.add('.notedconfig');
+    await git.commit('Update .notedconfig with remote info');
 }

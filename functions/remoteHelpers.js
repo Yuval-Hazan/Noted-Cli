@@ -1,20 +1,7 @@
 import simpleGit from 'simple-git';
 import chalk from 'chalk';
 import path from 'path';
-
-// Helper function to determine if we are inside a submodule
-export async function isSubmodule(repoPath) {
-    const git = simpleGit(repoPath);
-    try {
-        const result = await git.raw(['rev-parse', '--show-superproject-working-tree']);
-        if (result && result.trim()) {
-            return result.trim(); // Return the parent repository path
-        }
-    } catch (error) {
-        // If the command fails, we are not in a submodule
-    }
-    return null;
-}
+import { isSubmodule } from './validations.js'; // Correct import
 
 export async function commitChanges(currentPath, commitMessage, branchName = 'main') {
     try {
@@ -38,7 +25,7 @@ export async function commitChanges(currentPath, commitMessage, branchName = 'ma
             }
         }
 
-        // Calculate the relative path from repo root to current path
+        // Calculate the relative path from repoRoot to current path
         const relativePath = path.relative(repoRoot, currentPath) || '.';
 
         // Stage all changes from the current directory
