@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
-import { commitChanges } from '../functions/commitHelper.js'; // Import the commit helper
-import { isMainNotedRepo } from '../functions/isParent.js'; // Import the isMainNotedRepo helper
+import * as getters from '../functions/getters.js';
+import * as validations from '../functions/validations.js';
+import * as remotes from '../functions/remoteHelpers.js';
 
 export default function noteCommand(program) {
     const note = program.command('note').description('Manage notes inside the current workspace');
@@ -17,7 +18,7 @@ export default function noteCommand(program) {
                 const currentDir = process.cwd();
 
                 // Check if we're in the main Noted repository
-                if (isMainNotedRepo(currentDir)) {
+                if (validations.isMainNotedRepo(currentDir)) {
                     console.error(chalk.red('✖ Error: Notes cannot be created in the main Noted repository.'));
                     return;
                 }
@@ -41,7 +42,7 @@ export default function noteCommand(program) {
                 // Track the note in Git by default unless the --untracked option is specified
                 if (!options.untracked) {
                     // Track the note and commit the changes
-                    await commitChanges(currentDir, `Add note: ${finalNoteName}`);
+                    await remotes.commitChanges(currentDir, `Add note: ${finalNoteName}`);
                 } else {
                     console.log(chalk.yellow(`✔ Created untracked note: ${finalNoteName}`));
                 }
@@ -50,6 +51,7 @@ export default function noteCommand(program) {
                 console.error(chalk.red('✖ Error adding note: ') + error.message);
             }
         });
+
     // Delete note command
     note
         .command('delete <note>')
@@ -75,7 +77,7 @@ export default function noteCommand(program) {
                 console.log(chalk.green(`✔ Deleted note: ${noteName.replace('.md', '')}`));
 
                 // Commit the deletion
-                await commitChanges(currentDir, `Delete note: ${noteName}`);
+                await remotes.commitChanges(currentDir, `Delete note: ${noteName}`);
 
             } catch (error) {
                 console.error(chalk.red('✖ Error deleting note: ') + error.message);

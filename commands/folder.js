@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
-import { commitChanges } from '../functions/commitHelper.js';  // Import the commit helper
-import { isMainNotedRepo } from '../functions/isParent.js';  // Import the isMainNotedRepo helper
+import * as getters from '../functions/getters.js';
+import * as validations from '../functions/validations.js';
+import * as remotes from '../functions/remoteHelpers.js';
 
 export default function foldersCommand(program) {
     const folder = program.command('folder').description('Manage folders within the workspace');
@@ -15,7 +16,7 @@ export default function foldersCommand(program) {
         .action(async (folderName = 'untitled-folder', options) => {
             try {
                 const currentDir = process.cwd();  // Current directory
-                if (isMainNotedRepo(currentDir)) {
+                if (validations.isMainNotedRepo(currentDir)) {
                     console.error(chalk.red('✖ Error: Folders cannot be created in the main Noted repository.'));
                     return;
                 }
@@ -45,7 +46,7 @@ export default function foldersCommand(program) {
                 // Check if the folder should be tracked or untracked
                 if (!options.untracked) {
                     // Track the folder and commit the changes
-                    await commitChanges(currentDir, `Add folder: ${finalFolderName}`);
+                    await remotes.commitChanges(currentDir, `Add folder: ${finalFolderName}`);
                 } else {
                     console.log(chalk.yellow(`✔ Folder added without tracking: ${finalFolderName}`));
                 }
@@ -74,7 +75,7 @@ export default function foldersCommand(program) {
                 console.log(chalk.green(`✔ Deleted folder: ${folderName}`));
 
                 // Commit the deletion
-                await commitChanges(parentRepoPath, `Delete folder: ${folderName}`);
+                await remotes.commitChanges(parentRepoPath, `Delete folder: ${folderName}`);
 
             } catch (error) {
                 console.error(chalk.red('✖ Error deleting folder: ') + error.message);

@@ -2,7 +2,9 @@ import simpleGit from 'simple-git';
 import chalk from 'chalk';
 import fs from 'fs';
 import path from 'path';
-import { commitChanges, isSubmodule } from '../functions/commitHelper.js'; // Corrected import
+import * as getters from '../functions/getters.js'
+import * as validations from '../functions/validations.js'
+import * as remotes from '../functions/remoteHelpers.js'
 
 // Helper function to find the root of the workspace (submodule)
 async function findWorkspaceRoot(currentPath) {
